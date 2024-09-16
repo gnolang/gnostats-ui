@@ -31,11 +31,10 @@ const Proposers: FC<IProposersProps> = (props) => {
             <Text
               key={index}
               fontWeight={700}
-              textTransform={'uppercase'}
               color={'#777'}
               fontSize={'xs'}
             >
-              {`#${index} ${proposer}`}
+              {`#${index} - ${proposer}`}
             </Text>
           );
         })}
