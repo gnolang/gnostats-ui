@@ -9,6 +9,8 @@ const Proposers: FC<IProposersProps> = (props) => {
     <Flex
       direction={'column'}
       flexGrow={1}
+      justifyContent={'center'}
+      alignItems={'center'}
       style={{
         border: '1px solid rgba(255, 255, 255, .05)'
       }}
@@ -28,12 +30,7 @@ const Proposers: FC<IProposersProps> = (props) => {
       <Flex direction={'column'} rowGap={4}>
         {proposers.map((proposer, index) => {
           return (
-            <Text
-              key={index}
-              fontWeight={700}
-              color={'#777'}
-              fontSize={'xs'}
-            >
+            <Text key={index} fontWeight={700} color={'#777'} fontSize={'xs'}>
               {`#${index} - ${proposer}`}
             </Text>
           );

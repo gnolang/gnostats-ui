@@ -9,6 +9,7 @@ const Card: FC<ICardProps> = (props) => {
     <Flex
       direction={'row'}
       alignItems={'center'}
+      justifyContent={'center'}
       columnGap={4}
       style={{
         border: '1px solid rgba(255, 255, 255, .05)'

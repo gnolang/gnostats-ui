@@ -1,65 +1,44 @@
-import { IHomeProps, INodeInfo } from './home.types.ts';
+import {
+  EAction,
+  ESortDirection,
+  ESortOption,
+  IHomeProps
+} from './home.types.ts';
 import { FC, useEffect, useReducer, useState } from 'react';
 import {
+  Box,
   Container,
   Flex,
   Table,
   TableContainer,
   Tbody,
   Td,
+  Text,
   Th,
   Thead,
-  Tr,
-  Text,
   Tooltip,
-  Box
+  Tr
 } from '@chakra-ui/react';
 import Card from '../../atoms/Card/Card.tsx';
 import { BiCube } from 'react-icons/bi';
-import { GoHourglass } from 'react-icons/go';
-import { PiSpeedometer } from 'react-icons/pi';
+import { GoArrowSwitch, GoHourglass } from 'react-icons/go';
+import {
+  PiCircleNotchThin,
+  PiGraphLight,
+  PiNetworkLight,
+  PiSpeedometer
+} from 'react-icons/pi';
 import { IoPricetagsOutline } from 'react-icons/io5';
 import { SlPuzzle } from 'react-icons/sl';
-import { PiNetworkLight } from 'react-icons/pi';
 import Graph from '../../atoms/Graph/Graph.tsx';
 import Proposers from '../../atoms/Proposers/Proposers.tsx';
-import { PiGraphLight } from 'react-icons/pi';
-import { CiCircleCheck } from 'react-icons/ci';
+import { CiCircleCheck, CiHashtag } from 'react-icons/ci';
 import { FaPeopleGroup } from 'react-icons/fa6';
 import { FaVoteYea } from 'react-icons/fa';
-import { PiCircleNotchThin } from 'react-icons/pi';
-import { ImCheckmark2 } from 'react-icons/im';
-import { CiHashtag } from 'react-icons/ci';
-import { GoArrowSwitch } from 'react-icons/go';
-import { ImCross } from 'react-icons/im';
+import { ImCheckmark2, ImCross } from 'react-icons/im';
 import { DataPoint } from '../../../proto/stats.ts';
 import Long from 'long';
-
-type DataPointAction = {
-  type: 'NEW_DATAPOINT';
-  payload: {
-    id: string;
-    data: DataPoint;
-  };
-};
-
-type Action = DataPointAction;
-
-const nodeReducer = (state: Map<string, DataPoint>, action: Action) => {
-  const newState = new Map<string, DataPoint>(state);
-
-  switch (action.type) {
-    case 'NEW_DATAPOINT':
-      newState.set(action.payload.id, {
-        ...newState.get(action.payload.id), // keeps existing data
-        ...action.payload.data // merges new data
-      });
-
-      return newState;
-    default:
-      return state;
-  }
-};
+import { nodeReducer } from './reducer.ts';
 
 const Home: FC<IHomeProps> = () => {
   const infos: DataPoint[] = [
@@ -77,7 +56,7 @@ const Home: FC<IHomeProps> = () => {
             }
           ]
         },
-        pending_txs: new Long(20),
+        pending_txs: new Long(10),
         block_info: {
           number: new Long(20657283),
           timestamp: new Long(1726479433),
@@ -135,7 +114,7 @@ const Home: FC<IHomeProps> = () => {
             }
           ]
         },
-        pending_txs: new Long(20),
+        pending_txs: new Long(30),
         block_info: {
           number: new Long(20657283),
           timestamp: new Long(1726479433),
@@ -152,21 +131,18 @@ const Home: FC<IHomeProps> = () => {
     }
   ];
 
-  const [nodes, dispatch] = useReducer(
-    nodeReducer,
-    new Map<string, DataPoint>()
-  );
-
-  const [displayedInfo, setDisplayedInfo] = useState<DataPoint[]>([]);
-
-  useEffect(() => {
-    setDisplayedInfo([...nodes.values()]);
-  }, [nodes]);
+  const [nodes, dispatch] = useReducer(nodeReducer, {
+    dataMap: new Map<string, DataPoint>(),
+    displayedInfo: [],
+    sortOption: ESortOption.MONIKER,
+    sortDirection: ESortDirection.DESCENDING
+  });
 
   useEffect(() => {
+    // TODO fetch from stream
     for (const info of infos) {
       dispatch({
-        type: 'NEW_DATAPOINT',
+        type: EAction.NEW_DATAPOINT,
         payload: {
           id: info.static_info?.address as string,
           data: info as DataPoint
@@ -174,6 +150,36 @@ const Home: FC<IHomeProps> = () => {
       });
     }
   }, []);
+
+  const [activeSort, setActiveSort] = useState<ESortOption>(
+    ESortOption.MONIKER
+  );
+  const [activeDirection, setActiveDirection] = useState<ESortDirection>(
+    ESortDirection.DESCENDING
+  );
+
+  const updateSort = (option: ESortOption) => {
+    let direction: ESortDirection = ESortDirection.DESCENDING;
+
+    if (option === activeSort) {
+      if (activeDirection === ESortDirection.DESCENDING) {
+        direction = ESortDirection.ASCENDING;
+      } else {
+        direction = ESortDirection.DESCENDING;
+      }
+    }
+    
+    setActiveSort(option);
+    setActiveDirection(direction);
+
+    dispatch({
+      type: EAction.UPDATE_SORT,
+      payload: {
+        option,
+        direction
+      }
+    });
+  };
 
   const getLastUpdateTime = (timestamp: Long): number => {
     const currentTime = Math.floor(Date.now() / 1000);
@@ -220,6 +226,14 @@ const Home: FC<IHomeProps> = () => {
           icon={<PiNetworkLight color={'#50fa7b'} size={'70px'} />}
           value={'7/7'}
         />
+
+        <Proposers
+          proposers={[
+            'g1t9ctfa468hn6czff8kazw08crazehcxaqa2uaa',
+            'g1t9ctfa468hn6czff8kazw08crazehcxaqa2uaa',
+            'g1t9ctfa468hn6czff8kazw08crazehcxaqa2uaa'
+          ]}
+        />
       </Flex>
 
       <Flex flexWrap={'wrap'} width={'100%'}>
@@ -241,14 +255,6 @@ const Home: FC<IHomeProps> = () => {
         <Graph
           name={'Gas limit'}
           icon={<IoPricetagsOutline color={'#8be9fd'} size={'35px'} />}
-        />
-
-        <Proposers
-          proposers={[
-            'g1t9ctfa468hn6czff8kazw08crazehcxaqa2uaa',
-            'g1t9ctfa468hn6czff8kazw08crazehcxaqa2uaa',
-            'g1t9ctfa468hn6czff8kazw08crazehcxaqa2uaa'
-          ]}
         />
       </Flex>
 
@@ -279,8 +285,17 @@ const Home: FC<IHomeProps> = () => {
                     label={'Moniker'}
                     aria-label={'Moniker'}
                   >
-                    <Box display={'flex'}>
-                      <PiNetworkLight size={25} color={'#888'} />
+                    <Box
+                      display={'flex'}
+                      onClick={() => updateSort(ESortOption.MONIKER)}
+                    >
+                      <PiNetworkLight
+                        size={25}
+                        color={'#888'}
+                        style={{
+                          cursor: 'pointer'
+                        }}
+                      />
                     </Box>
                   </Tooltip>
                 </Th>
@@ -292,8 +307,17 @@ const Home: FC<IHomeProps> = () => {
                     label={'Validating'}
                     aria-label={'Validating'}
                   >
-                    <Box display={'flex'}>
-                      <FaVoteYea size={25} color={'#888'} />
+                    <Box
+                      display={'flex'}
+                      onClick={() => updateSort(ESortOption.VALIDATING)}
+                    >
+                      <FaVoteYea
+                        size={25}
+                        color={'#888'}
+                        style={{
+                          cursor: 'pointer'
+                        }}
+                      />
                     </Box>
                   </Tooltip>
                 </Th>
@@ -305,8 +329,17 @@ const Home: FC<IHomeProps> = () => {
                     label={'Peers'}
                     aria-label={'Peers'}
                   >
-                    <Box display={'flex'}>
-                      <FaPeopleGroup size={25} color={'#888'} />
+                    <Box
+                      display={'flex'}
+                      onClick={() => updateSort(ESortOption.PEERS)}
+                    >
+                      <FaPeopleGroup
+                        size={25}
+                        color={'#888'}
+                        style={{
+                          cursor: 'pointer'
+                        }}
+                      />
                     </Box>
                   </Tooltip>
                 </Th>
@@ -318,8 +351,17 @@ const Home: FC<IHomeProps> = () => {
                     label={'Pending transactions'}
                     aria-label={'Pending transactions'}
                   >
-                    <Box display={'flex'}>
-                      <PiGraphLight size={25} color={'#888'} />
+                    <Box
+                      display={'flex'}
+                      onClick={() => updateSort(ESortOption.PENDING_TXS)}
+                    >
+                      <PiGraphLight
+                        size={25}
+                        color={'#888'}
+                        style={{
+                          cursor: 'pointer'
+                        }}
+                      />
                     </Box>
                   </Tooltip>
                 </Th>
@@ -331,8 +373,17 @@ const Home: FC<IHomeProps> = () => {
                     label={'Last block'}
                     aria-label={'Last block'}
                   >
-                    <Box display={'flex'}>
-                      <BiCube size={25} color={'#888'} />
+                    <Box
+                      display={'flex'}
+                      onClick={() => updateSort(ESortOption.LAST_BLOCK)}
+                    >
+                      <BiCube
+                        size={25}
+                        color={'#888'}
+                        style={{
+                          cursor: 'pointer'
+                        }}
+                      />
                     </Box>
                   </Tooltip>
                 </Th>
@@ -344,8 +395,17 @@ const Home: FC<IHomeProps> = () => {
                     label={'Block hash'}
                     aria-label={'Block hash'}
                   >
-                    <Box display={'flex'}>
-                      <CiHashtag size={25} color={'#888'} />
+                    <Box
+                      display={'flex'}
+                      onClick={() => updateSort(ESortOption.BLOCK_HASH)}
+                    >
+                      <CiHashtag
+                        size={25}
+                        color={'#888'}
+                        style={{
+                          cursor: 'pointer'
+                        }}
+                      />
                     </Box>
                   </Tooltip>
                 </Th>
@@ -357,8 +417,17 @@ const Home: FC<IHomeProps> = () => {
                     label={'Block transactions'}
                     aria-label={'Block transactions'}
                   >
-                    <Box display={'flex'}>
-                      <GoArrowSwitch size={25} color={'#888'} />
+                    <Box
+                      display={'flex'}
+                      onClick={() => updateSort(ESortOption.BLOCK_TXS)}
+                    >
+                      <GoArrowSwitch
+                        size={25}
+                        color={'#888'}
+                        style={{
+                          cursor: 'pointer'
+                        }}
+                      />
                     </Box>
                   </Tooltip>
                 </Th>
@@ -370,19 +439,38 @@ const Home: FC<IHomeProps> = () => {
                     label={'Last block time'}
                     aria-label={'Last block time'}
                   >
-                    <Box display={'flex'}>
-                      <GoHourglass size={25} color={'#888'} />
+                    <Box
+                      display={'flex'}
+                      onClick={() => updateSort(ESortOption.LAST_BLOCK_TIME)}
+                    >
+                      <GoHourglass
+                        size={25}
+                        color={'#888'}
+                        style={{
+                          cursor: 'pointer'
+                        }}
+                      />
                     </Box>
                   </Tooltip>
                 </Th>
               </Tr>
             </Thead>
             <Tbody>
-              {displayedInfo.map((info, index) => {
+              {nodes.displayedInfo.map((info, index) => {
                 return (
                   <Tr key={`node-${index}`}>
                     <Td>
-                      <PiCircleNotchThin size={25} color={'#50fa7b'} />
+                      <Tooltip
+                        placement={'bottom-start'}
+                        bg={'rgba(255,255,255,0.8)'}
+                        color={'black'}
+                        label={'Click to pin'}
+                        aria-label={'Click to pin'}
+                      >
+                        <Box display={'flex'}>
+                          <PiCircleNotchThin size={25} color={'#50fa7b'} />
+                        </Box>
+                      </Tooltip>
                     </Td>
                     <Td>
                       <Text fontSize={'sm'}>{info.dynamic_info?.moniker}</Text>
@@ -408,7 +496,7 @@ const Home: FC<IHomeProps> = () => {
                     </Td>
                     <Td>
                       <Text color={'#50fa7b'} fontSize={'sm'}>
-                        {`#${info.dynamic_info?.block_info?.number.toLocaleString()}`}
+                        {`#${(info.dynamic_info?.block_info?.number.toNumber() as number).toLocaleString()}`}
                       </Text>
                     </Td>
                     <Td>
