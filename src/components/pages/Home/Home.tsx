@@ -2,7 +2,9 @@ import {
   EAction,
   ESortDirection,
   ESortOption,
-  IHomeProps
+  IHomeProps,
+  ILatestBlock,
+  INodeData
 } from './home.types.ts';
 import { FC, useEffect, useReducer, useState } from 'react';
 import {
@@ -36,7 +38,7 @@ import { CiCircleCheck, CiHashtag } from 'react-icons/ci';
 import { FaPeopleGroup } from 'react-icons/fa6';
 import { FaVoteYea } from 'react-icons/fa';
 import { ImCheckmark2, ImCross } from 'react-icons/im';
-import { DataPoint } from '../../../proto/stats.ts';
+import { DataPoint, PeerInfo } from '../../../proto/stats.ts';
 import Long from 'long';
 import { nodeReducer } from './reducer.ts';
 
@@ -59,7 +61,7 @@ const Home: FC<IHomeProps> = () => {
         pending_txs: new Long(10),
         block_info: {
           number: new Long(20657283),
-          timestamp: new Long(1726479433),
+          timestamp: new Long(1726849171),
           gas_used: new Long(1000),
           gas_wanted: new Long(1000),
           proposer: 'g11291923121231212'
@@ -88,7 +90,7 @@ const Home: FC<IHomeProps> = () => {
         pending_txs: new Long(20),
         block_info: {
           number: new Long(20657283),
-          timestamp: new Long(1726479433),
+          timestamp: new Long(1726849171),
           gas_used: new Long(1000),
           gas_wanted: new Long(1000),
           proposer: 'g11291923121231212'
@@ -117,7 +119,7 @@ const Home: FC<IHomeProps> = () => {
         pending_txs: new Long(30),
         block_info: {
           number: new Long(20657283),
-          timestamp: new Long(1726479433),
+          timestamp: new Long(1726849171),
           gas_used: new Long(1000),
           gas_wanted: new Long(1000),
           proposer: 'g11291923121231212'
@@ -132,7 +134,8 @@ const Home: FC<IHomeProps> = () => {
   ];
 
   const [nodes, dispatch] = useReducer(nodeReducer, {
-    dataMap: new Map<string, DataPoint>(),
+    dataMap: new Map<string, INodeData>(),
+    pinnedMap: new Map<string, boolean>(),
     displayedInfo: [],
     sortOption: ESortOption.MONIKER,
     sortDirection: ESortDirection.DESCENDING
@@ -141,15 +144,60 @@ const Home: FC<IHomeProps> = () => {
   useEffect(() => {
     // TODO fetch from stream
     for (const info of infos) {
+      const data: INodeData = {
+        address: info.static_info?.address as string,
+        moniker: info.dynamic_info?.moniker as string,
+        isValidator: info.dynamic_info?.is_validator as boolean,
+        pendingTxs: info.dynamic_info?.pending_txs.toNumber() as number,
+        numPeers: (info.dynamic_info?.net_info?.peers as PeerInfo[]).length,
+        latestBlockNumber:
+          info.dynamic_info?.block_info?.number.toNumber() as number,
+        latestBlockTxs: 0, // TODO add to proto
+        latestBlockHash: 'cS17PEb5SApEdkyb0a2V65qc/tWYCTYejNx7jhb+8ps=', // TODO add to proto
+        latestBlockTimestamp:
+          info.dynamic_info?.block_info?.timestamp.toNumber() as number,
+        latestGasUsed:
+          info.dynamic_info?.block_info?.gas_used.toNumber() as number,
+        latestGasWanted:
+          info.dynamic_info?.block_info?.gas_wanted.toNumber() as number,
+        latestProposer: info.dynamic_info?.block_info?.proposer as string
+      };
+
+      if (data.latestBlockNumber > latestBlock.bestBlock) {
+        setLatestBlock({
+          bestBlock: data.latestBlockNumber,
+          lastBlockTimestamp: data.latestBlockTimestamp,
+          gasFee: 0, // TODO add to proto
+          gasLimit: data.latestGasWanted
+        });
+      }
+
       dispatch({
         type: EAction.NEW_DATAPOINT,
         payload: {
           id: info.static_info?.address as string,
-          data: info as DataPoint
+          data: data
         }
       });
     }
   }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      dispatch({
+        type: EAction.UPDATE_TIMESTAMP
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const [latestBlock, setLatestBlock] = useState<ILatestBlock>({
+    bestBlock: 0,
+    lastBlockTimestamp: 0,
+    gasFee: 0,
+    gasLimit: 0
+  });
 
   const [activeSort, setActiveSort] = useState<ESortOption>(
     ESortOption.MONIKER
@@ -168,7 +216,7 @@ const Home: FC<IHomeProps> = () => {
         direction = ESortDirection.DESCENDING;
       }
     }
-    
+
     setActiveSort(option);
     setActiveDirection(direction);
 
@@ -181,10 +229,13 @@ const Home: FC<IHomeProps> = () => {
     });
   };
 
-  const getLastUpdateTime = (timestamp: Long): number => {
-    const currentTime = Math.floor(Date.now() / 1000);
-
-    return currentTime - timestamp.toNumber();
+  const pinItem = (id: string) => {
+    dispatch({
+      type: EAction.PIN_ITEM,
+      payload: {
+        id
+      }
+    });
   };
 
   return (
@@ -468,16 +519,28 @@ const Home: FC<IHomeProps> = () => {
                         aria-label={'Click to pin'}
                       >
                         <Box display={'flex'}>
-                          <PiCircleNotchThin size={25} color={'#50fa7b'} />
+                          {nodes.pinnedMap.get(info.data.address) ? (
+                            <CiCircleCheck
+                              size={25}
+                              color={'#50fa7b'}
+                              onClick={() => pinItem(info.data.address)}
+                            />
+                          ) : (
+                            <PiCircleNotchThin
+                              size={25}
+                              color={'#50fa7b'}
+                              onClick={() => pinItem(info.data.address)}
+                            />
+                          )}
                         </Box>
                       </Tooltip>
                     </Td>
                     <Td>
-                      <Text fontSize={'sm'}>{info.dynamic_info?.moniker}</Text>
+                      <Text fontSize={'sm'}>{info.data.moniker}</Text>
                     </Td>
                     <Td>
                       <Text color={'#50fa7b'} fontSize={'sm'}>
-                        {info.dynamic_info?.is_validator ? (
+                        {info.data.isValidator ? (
                           <ImCheckmark2 size={20} color={'#50fa7b'} />
                         ) : (
                           <ImCross size={20} color={'#888'} />
@@ -486,32 +549,35 @@ const Home: FC<IHomeProps> = () => {
                     </Td>
                     <Td>
                       <Text color={'#50fa7b'} fontSize={'sm'}>
-                        {info.dynamic_info?.net_info?.peers.length}
+                        {info.data.numPeers}
                       </Text>
                     </Td>
                     <Td>
                       <Text color={'#50fa7b'} fontSize={'sm'}>
-                        {info.dynamic_info?.pending_txs.toNumber() as number}
+                        {info.data.pendingTxs}
                       </Text>
                     </Td>
                     <Td>
                       <Text color={'#50fa7b'} fontSize={'sm'}>
-                        {`#${(info.dynamic_info?.block_info?.number.toNumber() as number).toLocaleString()}`}
+                        {`#${info.data.latestBlockNumber.toLocaleString()}`}
                       </Text>
                     </Td>
                     <Td>
                       <Text color={'#50fa7b'} fontSize={'sm'} isTruncated>
-                        {`TODO add hash to proto`}
+                        {info.data.latestBlockHash}
                       </Text>
                     </Td>
                     <Td>
                       <Text color={'#50fa7b'} fontSize={'sm'}>
-                        {`TODO add block txs to proto`}
+                        {`${info.data.latestBlockTxs} txs`}
                       </Text>
                     </Td>
                     <Td>
                       <Text color={'#50fa7b'} fontSize={'sm'}>
-                        {`${getLastUpdateTime(info.dynamic_info?.block_info?.timestamp as Long)}s ago`}
+                        {
+                          // TODO add color coding
+                        }
+                        {info.timeSince}
                       </Text>
                     </Td>
                   </Tr>
